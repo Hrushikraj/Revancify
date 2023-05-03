@@ -83,7 +83,7 @@ getResources() {
     resourcesVars
     if [ "$patchesLatest" = "$patchesAvailable" ] && [ "$patchesLatest" = "$jsonAvailable" ] && [ "$cliLatest" = "$cliAvailable" ] && [ "$integrationsLatest" = "$integrationsAvailable" ] && [ "$cliSize" = "$cliAvailableSize" ] && [ "$patchesSize" = "$patchesAvailableSize" ] && [ "$integrationsSize" = "$integrationsAvailableSize" ]; then
         if [ "$(bash "$path/fetch_patches.sh" "$source" online)" == "error" ]; then
-            "${header[@]}" --msgbox "Resources are already downloaded but patches are not successfully synced.\nRevancify may crash." 12 40
+            "${header[@]}" --msgbox "Resources are successfully downloaded but Apkmirror API is not accessible. So, patches are not successfully synced.\nRevancify may crash.\n\nChange your network." 12 40
             mainMenu
             return 0
         fi
@@ -112,7 +112,7 @@ getResources() {
     [ "$integrationsSize" != "$(ls "$integrationsSource"-integrations-*.apk >/dev/null 2>&1 && du -b "$integrationsSource"-integrations-*.apk | cut -d $'\t' -f 1 || echo 0)" ] && "${header[@]}" --msgbox "Oops! File not downloaded.\n\nRetry or change your Network." 12 40 && mainMenu && return 0
 
     if [ "$(bash "$path/fetch_patches.sh" "$source" online)" == "error" ]; then
-        "${header[@]}" --msgbox "Resources are successfully downloaded but patches are not successfully synced.\nRevancify may crash." 12 40
+        "${header[@]}" --msgbox "Resources are successfully downloaded but Apkmirror API is not accessible. So, patches are not successfully synced.\nRevancify may crash.\n\nChange your network." 12 40
         mainMenu
         return 0
     fi
@@ -157,17 +157,20 @@ checkJson() {
     fi
     if ! ls "$patchesSource-patches.json" >/dev/null 2>&1; then
         internet
+        "${header[@]}" --infobox "Please Wait !!" 12 40
         if [ "$(bash "$path/fetch_patches.sh" "$source" online)" == "error" ]; then
-            "${header[@]}" --msgbox "Patches are not successfully synced.\nRevancify may crash." 12 40
+            "${header[@]}" --msgbox "Oops !! Apkmirror API is not accessible. Patches are not successfully synced.\nRevancify may crash.\n\nChange your network." 12 40
             mainMenu
             return 0
         fi
+        includedPatches=$(jq '.' "$patchesSource-patches.json" 2>/dev/null || jq -n '[]')
+        appsArray=$(jq -n --argjson includedPatches "$includedPatches" --arg pkgName "$pkgName" '$includedPatches | to_entries | map(select(.value.appName != null)) | to_entries | map({"index": (.key + 1), "appName": (.value.value.appName), "pkgName" :(.value.value.pkgName), "developerName" :(.value.value.developerName), "apkmirrorAppName" :(.value.value.apkmirrorAppName)})')
     fi
 }
 
 selectApp() {
     if [ "$1" == "extra" ]; then
-        customOpt=(1 "From Apk File" "Choose apk from storage.")
+        customOpt=(1 "Use Apk File" "Choose apk from storage.")
         incrementVal=1
     elif [ "$1" == "normal" ]; then
         unset customOpt
@@ -181,6 +184,7 @@ selectApp() {
     if [ $exitstatus -eq 0 ]; then
         if [ "$1" == "extra" ] && [ "$appIndex" -eq 1 ]; then
             appType=custom
+            unset appName appVer
         else
             readarray -t appSelectedResult < <(jq -n -r --arg incrementVal "$incrementVal" --arg appIndex "$appIndex" --argjson appsArray "$appsArray" '$appsArray[] | select(.index == (($appIndex | tonumber) - ($incrementVal | tonumber))) | .appName, .pkgName, .developerName, .apkmirrorAppName')
             appName="${appSelectedResult[0]}"
@@ -404,8 +408,11 @@ versionSelector() {
     appVer="$(sed 's/\./-/g;s/ /-/g' <<<"$selectedVer")"
     if [ $exitstatus -ne 0 ]; then
         selectApp extra
-        getAppVer
-        return 0
+        if [ "$appType" == "normal" ]; then
+            buildApk
+        else
+            buildCustomApk
+        fi
     fi
 }
 
