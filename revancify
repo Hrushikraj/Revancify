@@ -69,7 +69,7 @@ theme=${theme:-Dark}
 export DIALOGRC="$path/configs/.dialogrc$theme"
 
 checkdependencies() {
-    if bins=$(ls "$BIN") && grep -q java <<<"$bins" && grep -q wget <<<"$bins" && grep -q tput <<<"$bins" && grep -q dialog <<<"$bins" && grep -q jq <<<"$bins" && ls "$DATA/.dialogrcLight" >/dev/null 2>&1 && ls "$DATA/.dialogrcDark" >/dev/null 2>&1 && ls "$DATA/.dialogrcDefault" >/dev/null 2>&1 && ls "$BIN/revancify" >/dev/null 2>&1 && ls "$HOME/storage" >/dev/null 2>&1; then
+    if bins=$(ls "$BIN") && grep -q java <<<"$bins" && grep -q wget <<<"$bins" && grep -q tput <<<"$bins" && grep -q dialog <<<"$bins" && grep -q jq <<<"$bins" && ls "$BIN/revancify" >/dev/null 2>&1 && ls "$HOME/storage" >/dev/null 2>&1; then
         return 0
     else
         if ping -c 1 google.com >/dev/null 2>&1; then
