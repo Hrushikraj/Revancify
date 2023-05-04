@@ -25,7 +25,7 @@ setup() {
         tmp=$(mktemp) && jq '.riplibStatus |= true' settings.json >"$tmp" && mv "$tmp" settings.json
     fi
     theme=$(jq -r '.theme' settings.json)
-    export DIALOGRC=.dialogrc$theme
+    export DIALOGRC="$path/configs/.dialogrc$theme"
 
     if [ "$(jq -r '.source' settings.json)" == "null" ]; then
         readarray -t allSources < <(jq -r --arg source "$source" 'to_entries | .[] | .key,"["+.value.projectName+"]","on"' "$path"/sources.json)
@@ -596,7 +596,6 @@ downloadApp() {
 }
 
 downloadMicrog() {
-
     if "${header[@]}" --begin 2 0 --title '| MicroG Prompt |' --no-items --defaultno --yesno "Vanced MicroG is used to run MicroG services without root.\nYouTube and YouTube Music won't work without it.\nIf you already have MicroG, You don't need to download it.\n\n\n\n\n\nDo you want to download Vanced MicroG app?" -1 -1; then
         internet
         readarray -t microgheaders < <(curl -s "https://api.github.com/repos/inotia00/VancedMicroG/releases/latest" | jq -r '(.assets[] | .browser_download_url, .size), .tag_name')
@@ -635,7 +634,7 @@ checkMicrogPatch() {
     if [ "$microgPatch" == "" ]; then
         return 0
     fi
-    microgStatus=$(jq -n -r --argjson includedPatches "$includedPatches" --arg pkgName "$pkgName" --arg microgPatch $microgPatch '$includedPatches[] | select(.pkgName == $pkgName) | .includedPatches | index($microgPatch)')
+    microgStatus=$(jq -n -r --argjson includedPatches "$includedPatches" --arg pkgName "$pkgName" --arg microgPatch "$microgPatch" '$includedPatches[] | select(.pkgName == $pkgName) | .includedPatches | index($microgPatch)')
     if [ "$microgStatus" != "null" ] && [ "$variant" = "root" ]; then
         if "${header[@]}" --begin 2 0 --title '| MicroG warning |' --no-items --defaultno --yes-label "Continue" --no-label "Exclude" --yesno "You have a rooted device and you have included microg-support patch. This may result in $appName app crash.\n\n\nDo you want to exclude it or continue?" -1 -1; then
             return 0
@@ -656,14 +655,14 @@ checkMicrogPatch() {
 switchTheme() {
     allThemes=(Default off Dark off Light off)
     for i in "${!allThemes[@]}"; do
-        if [ "${allThemes[$i]}" == "${DIALOGRC/.dialogrc/}" ]; then
+        if [ "${allThemes[$i]}" == "${DIALOGRC##*/.dialogrc}" ]; then
             allThemes["$(("$i" + 1))"]="on"
             break
         fi
     done
     selectedTheme=$("${header[@]}" --begin 2 0 --title '| Theme Selection Menu |' --no-items --no-cancel --ok-label "Done" --radiolist "Use arrow keys to navigate; Press Spacebar to select option" -1 -1 15 "${allThemes[@]}" 2>&1 >/dev/tty)
     tmp=$(mktemp) && jq --arg selectedTheme "$selectedTheme" '.theme |= $selectedTheme' settings.json >"$tmp" && mv "$tmp" settings.json
-    export DIALOGRC=.dialogrc$selectedTheme
+    export DIALOGRC="$path/configs/.dialogrc$selectedTheme"
     extrasMenu
 }
 

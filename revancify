@@ -65,7 +65,8 @@ trap terminate SIGTERM SIGINT SIGABRT
 DATA="$HOME/revancify-data"
 [ ! -d $DATA ] && mkdir -p "$DATA"
 theme=$(jq -r '.theme' "$DATA/settings.json" 2>/dev/null)
-export DIALOGRC=$DATA/.dialogrc$theme
+theme=${theme:-Dark}
+export DIALOGRC="$path/configs/.dialogrc$theme"
 
 checkdependencies() {
     if bins=$(ls "$BIN") && grep -q java <<<"$bins" && grep -q wget <<<"$bins" && grep -q tput <<<"$bins" && grep -q dialog <<<"$bins" && grep -q jq <<<"$bins" && ls "$DATA/.dialogrcLight" >/dev/null 2>&1 && ls "$DATA/.dialogrcDark" >/dev/null 2>&1 && ls "$DATA/.dialogrcDefault" >/dev/null 2>&1 && ls "$BIN/revancify" >/dev/null 2>&1 && ls "$HOME/storage" >/dev/null 2>&1; then
@@ -75,7 +76,7 @@ checkdependencies() {
             installdependencies
             checkdependencies
         else
-            cp revancify "$BIN/revancify"
+            cp ./revancify "$BIN/revancify"
             echo "Dependencies not installed. Run again with internet connection."
             exit 1
         fi
@@ -85,15 +86,12 @@ checkdependencies() {
 installdependencies() {
     clear
     echo "Installing dependencies..."
-    cp revancify "$BIN/revancify"
+    cp ./revancify "$BIN/revancify"
     sleep 1
     [ ! -d "$HOME/storage" ] && termux-setup-storage
     pkg update -y
     pkg install openjdk-17 wget ncurses-utils dialog jq -y
     git config --global pull.rebase true
-    wget "https://raw.githubusercontent.com/decipher3114/MyConfigs/main/.dialogrc_dark" -O "$DATA/.dialogrcDark"
-    wget "https://raw.githubusercontent.com/decipher3114/MyConfigs/main/.dialogrc_light" -O "$DATA/.dialogrcLight"
-    wget "https://raw.githubusercontent.com/decipher3114/MyConfigs/main/.dialogrc_default" -O "$DATA/.dialogrcDefault"
     sed -i '/allow-external-apps/s/# //' "$HOME/.termux/termux.properties"
     echo "Dependencies installed successfully."
     return 0
