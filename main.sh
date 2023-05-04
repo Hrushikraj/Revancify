@@ -250,18 +250,28 @@ patchSaver() {
 editPatchOptions() {
     checkResources
     "${header[@]}" --infobox "Please Wait !!\nGenerating options file for $sourceName patches..." 12 40
-    java -jar "$cliSource"-cli-*.jar -b "$patchesSource"-patches-*.jar -m "$integrationsSource"-integrations-*.apk -c -a noinput.apk -o nooutput.apk --options "$storagePath/Revancify/$source-options.toml" >/dev/null 2>&1
-    "${header[@]}" --begin 2 0 --title '| Open Options File |' --no-items --defaultno --yes-label "Text Editor" --no-label "Termux Dialog" --help-button --help-label "Cancel" --yesno "How do you want to open editor the options file?" -1 -1
-    optionsExitStatus=$?
-    if [ "$optionsExitStatus" -eq 0 ]; then
-        "${header[@]}" --infobox "Please Wait !!\nOpening File..." 12 40
-        termux-open "$storagePath/Revancify/$source-options.toml" --content-type text
-        "${header[@]}" --msgbox "Command to open the editor for options file was successfully executed.\nIf the editor is not opened, then you may need to install any text editor app in your device or You can edit the file in Termux Dialog." 14 40
-    elif [ "$optionsExitStatus" -eq 1 ]; then
-        tput cnorm
-        tmp=$(mktemp) && "${header[@]}" --begin 2 0 --ok-label "Save" --cancel-label "Exit" --title '| Options File Editor |' --editbox "$storagePath/Revancify/$source-options.toml" -1 -1 2>"$tmp" && mv "$tmp" "$storagePath/Revancify/$source-options.toml"
-        tput civis
-    fi
+    java -jar "$cliSource"-cli-*.jar -b "$patchesSource"-patches-*.jar -m "$integrationsSource"-integrations-*.apk -c -a noinput.apk -o nooutput.apk --options "$storagePath/Revancify/$source-options.json" >/dev/null 2>&1
+    currentPatch="none"
+    optionsJson=$(jq '.' "$storagePath/Revancify/$source-options.json")
+    readarray -t patchNames < <(jq -n -r --argjson optionsJson "$optionsJson" '$optionsJson[].patchName')
+    while true; do
+        fieldLength=$(( $(tput cols) - 12 ))
+        if [ "$currentPatch" == "none" ]; then
+            if ! currentPatch=$("${header[@]}" --begin 2 0 --title '| Patch Options Menu |' --no-items --ok-label "Select" --cancel-label "Back" --menu "Select Patch to edit options" -1 -1 15 "${patchNames[@]}" 2>&1 >/dev/tty); then
+                jq -n --argjson optionsJson "$optionsJson" '$optionsJson' > "$storagePath/Revancify/$source-options.json"
+                break
+            fi
+        else
+            tput cnorm
+            readarray -t patchOptionEntries < <(jq -n -r --arg fieldLength "$fieldLength" --arg currentPatch "$currentPatch" --argjson optionsJson "$optionsJson" '$optionsJson[] | select(.patchName == $currentPatch) | .options | to_entries[] | .key as $key | (.value | ((($key+1) | tostring) + ". " + .key), ($key*2)+1, 0, .value, ($key*2)+2, 4, $fieldLength, 50, 0)')
+            readarray -t newValues < <("${header[@]}" --begin 2 0 --title '| Patch Options Form |' --ok-label "Save" --cancel-label "Back" --mixedform "Edit patch options for \"$currentPatch\" patch" -1 -1 20 "${patchOptionEntries[@]}" 2>&1 >/dev/tty)
+            if [ "${newValues[*]}" != "" ]; then
+                optionsJson=$(jq -n -r --arg currentPatch "$currentPatch" --argjson optionsJson "$optionsJson" '$optionsJson | map((select(.patchName == $currentPatch) | .options) |= [(to_entries[] | .key as $key | .value.value = (if $ARGS.positional[$key] == "" then null elif $ARGS.positional[$key] == "null" then null elif $ARGS.positional[$key] == "true" then true elif $ARGS.positional[$key] == "false" then false else $ARGS.positional[$key] end)) | .value])' --args "${newValues[@]}")
+            fi
+            currentPatch="none"
+            tput civis
+        fi
+    done
     mainMenu
 }
 
@@ -619,7 +629,7 @@ patchApp() {
     fi
     includedPatches=$(jq '.' "$patchesSource-patches.json" 2>/dev/null || jq -n '[]')
     patchesArg=$(jq -n -r --argjson includedPatches "$includedPatches" --arg pkgName "$pkgName" '$includedPatches[] | select(.pkgName == $pkgName).includedPatches | if ((. | length) != 0) then (.[] | "-i " + .) else empty end')
-    java -jar "$cliSource"-cli-*.jar -b "$patchesSource"-patches-*.jar -m "$integrationsSource"-integrations-*.apk -c -a "$appName-$appVer.apk" -o "$appName-Revanced-$appVer.apk" $patchesArg $riplibArgs --keystore "$keystore" --custom-aapt2-binary "$path/binaries/aapt2_$arch" --options "$storagePath/Revancify/$source-options.toml" --experimental --exclusive 2>&1 | tee "$storagePath/Revancify/patchlog.txt" | "${header[@]}" --begin 2 0 --ok-label "Continue" --cursor-off-label --programbox "Patching $appName-$appVer.apk" -1 -1
+    java -jar "$cliSource"-cli-*.jar -b "$patchesSource"-patches-*.jar -m "$integrationsSource"-integrations-*.apk -c -a "$appName-$appVer.apk" -o "$appName-Revanced-$appVer.apk" $patchesArg $riplibArgs --keystore "$keystore" --custom-aapt2-binary "$path/binaries/aapt2_$arch" --options "$storagePath/Revancify/$source-options.json" --experimental --exclusive 2>&1 | tee "$storagePath/Revancify/patchlog.txt" | "${header[@]}" --begin 2 0 --ok-label "Continue" --cursor-off-label --programbox "Patching $appName-$appVer.apk" -1 -1
     echo -e "\n\n\nVariant: $variant\nArch: $arch\nApp: $appName-$appVer.apk\nCLI: $(ls "$cliSource"-cli-*.jar)\nPatches: $(ls "$patchesSource"-patches-*.jar)\nIntegrations: $(ls "$integrationsSource"-integrations-*.apk)\nPatches argument: ${patchesArg[*]}" >>"$storagePath/Revancify/patchlog.txt"
     tput civis
     sleep 1
@@ -694,7 +704,7 @@ extrasMenu() {
         fi
     elif [ "$extrasPrompt" -eq 4 ]; then
         if "${header[@]}" --begin 2 0 --title '| Delete Resources |' --no-items --defaultno --yesno "Please confirm to delete the options file for $sourceName patches." -1 -1; then
-            rm "$storagePath/Revancify/$source-options.toml" >/dev/null 2>&1
+            rm "$storagePath/Revancify/$source-options.json" >/dev/null 2>&1
             "${header[@]}" --msgbox "Options file successfully deleted for current source !!" 12 40
         fi
     elif [ "$extrasPrompt" -eq 5 ]; then
